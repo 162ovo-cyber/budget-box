@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>✨ 盲盒生活费 </title>
+    <style>
+        :root {
+            --primary-color: #FF8FA3;
+            --bg-color: #FFF0F3;
+            --card-bg: #FFFFFF;
+            --text-main: #5D5A68;
+            --text-muted: #9E9AA7;
+            --success: #10B981;
+            --danger: #EF4444;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-tap-highlight-color: transparent;}
+        
+        body, html { width: 100%; height: 100%; overflow: hidden; background-color: var(--bg-color); color: var(--text-main); transition: background-color 0.3s ease;}
+
+        /* 滑动容器 */
+        .app-container { width: 100vw; height: 100vh; display: flex; flex-direction: column; position: relative; }
+        .view-pager { display: flex; width: 200vw; height: calc(100vh - 60px); transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); will-change: transform; }
+        
+        /* 单个页面 */
+        .page { width: 100vw; height: 100%; overflow-y: auto; padding: 16px; padding-bottom: 24px; display: flex; flex-direction: column; gap: 16px; }
+        
+        /* 底部导航栏 */
+        .bottom-nav { position: fixed; bottom: 0; left: 0; width: 100%; height: 60px; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); display: flex; justify-content: space-around; align-items: center; box-shadow: 0 -4px 20px rgba(0,0,0, 0.05); border-top-left-radius: 24px; border-top-right-radius: 24px; z-index: 100; padding-bottom: env(safe-area-inset-bottom); }
+        .nav-item { flex: 1; text-align: center; color: #D1C5C8; font-size: 15px; font-weight: bold; padding: 10px; transition: color 0.3s; cursor: pointer; display: flex; flex-direction: column; gap: 4px; align-items: center;}
+        .nav-item.active { color: var(--primary-color); }
+        .nav-indicator { width: 24px; height: 4px; background: var(--primary-color); border-radius: 4px; opacity: 0; transition: opacity 0.3s, transform 0.3s; transform: translateY(4px);}
+        .nav-item.active .nav-indicator { opacity: 1; transform: translateY(0); }
+
+        /* 卡片通用样式 */
+        .card { background: var(--card-bg); border-radius: 20px; padding: 20px; box-shadow: 0 8px 24px rgba(0,0,0, 0.04); flex-shrink: 0;}
+        .card-title { font-size: 15px; font-weight: bold; color: var(--text-main); margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+
+        /* --- 页面 1：记账相关样式 --- */
+        .vault-card { text-align: center; background: var(--primary-color); color: white; padding: 24px 20px; border-radius: 24px; box-shadow: 0 10px 25px rgba(0,0,0, 0.1); flex-shrink: 0; transition: background 0.3s ease;}
+        .vault-title { font-size: 14px; opacity: 0.9; margin-bottom: 8px; }
+        .vault-amount { font-size: 40px; font-weight: bold; text-shadow: 2px 2px 4px rgba(0,0,0,0.1); }
+        
+        .dashboard { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; text-align: center; margin-bottom: 16px; }
+        .dash-item { display: flex; flex-direction: column; gap: 4px; }
+        .dash-label { font-size: 12px; color: var(--text-muted); }
+        .dash-val { font-size: 18px; font-weight: bold; color: var(--text-main); }
+        .val-remain { color: var(--success); }
+        .val-spent { color: var(--danger); }
+
+        .accounting-row { display: flex; gap: 8px; margin-bottom: 16px; }
+        .acct-select { padding: 10px; border: 1px solid #eee; border-radius: 12px; background: #fafafa; outline: none; font-size: 14px; }
+        .acct-input { flex: 1; padding: 10px 12px; border: 1px solid #eee; border-radius: 12px; background: #fafafa; outline: none; font-size: 16px; width: 100%;}
+        .acct-btn { background: var(--primary-color); color: white; border: none; border-radius: 12px; padding: 0 20px; font-weight: bold; cursor: pointer; transition: background 0.3s ease;}
+
+        .expense-list { display: flex; flex-direction: column; gap: 10px; max-height: 250px; overflow-y: auto; padding-bottom: 10px;}
+        .expense-item { display: flex; justify-content: space-between; font-size: 14px; padding-bottom: 8px; border-bottom: 1px dashed #f0f0f0; align-items: center;}
+        .expense-item:last-child { border-bottom: none; }
+        .exp-info { display: flex; flex-direction: column; gap: 2px; }
+        .exp-amt { font-weight: bold; color: var(--text-main); font-size: 15px;}
+        .empty-tips { text-align: center; font-size: 12px; color: #ccc; padding: 10px 0; }
+        
+        /* 操作按钮样式 */
+        .exp-actions { display: flex; align-items: center; gap: 8px; }
+        .exp-edit { font-size: 14px; cursor: pointer; opacity: 0.7; }
+        .exp-del { color: var(--danger); font-size: 18px; font-weight: bold; cursor: pointer; opacity: 0.8;}
+
+        /* --- 页面 2：抽奖与任务样式 --- */
+        .settings-row { display: flex; justify-content: space-between; align-items: center; background: #fafafa; padding: 12px; border-radius: 12px; margin-bottom: 10px;}
+        .settings-row span { font-size: 14px; font-weight: bold;}
+        .settings-inputs { display: flex; align-items: center; gap: 8px; font-size: 14px;}
+        .settings-inputs input[type="number"] { width: 55px; padding: 6px; border: 1px solid #ddd; border-radius: 8px; text-align: center; font-size: 14px; outline: none; color: var(--primary-color); font-weight: bold; transition: color 0.3s ease;}
+        .settings-inputs input[type="number"]:focus { border-color: var(--primary-color); }
+
+        .color-picker { width: 32px; height: 32px; padding: 0; border: none; border-radius: 50%; overflow: hidden; cursor: pointer; background: none;}
+        .color-picker::-webkit-color-swatch-wrapper { padding: 0; }
+        .color-picker::-webkit-color-swatch { border: 2px solid #fff; border-radius: 50%; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+
+        /* 盲盒统计卡片 */
+        .stats-card { display: flex; justify-content: space-around; background: #fafafa; padding: 12px; border-radius: 12px; margin-bottom: 16px; text-align: center;}
+        .stats-card div { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-muted);}
+        .stats-val { font-size: 16px; font-weight: bold; color: var(--primary-color); transition: color 0.3s ease, transform 0.2s;}
+
+        .task-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;}
+        .task-item { display: flex; align-items: center; gap: 10px; }
+        .task-item input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--primary-color); }
+        .task-item input[type="text"] { flex: 1; border: 1px solid #eee; border-radius: 4px; padding: 6px 8px; font-size: 13px; display: none; outline: none; border-color: var(--primary-color);}
+        .task-item span { font-size: 13px; flex: 1; line-height: 1.4;}
+        
+        .delete-btn { display: none; background: none; border: none; font-size: 14px; cursor: pointer; color: var(--danger); padding: 4px;}
+        .edit-btn { font-size: 12px; color: var(--primary-color); cursor: pointer; background: rgba(0,0,0,0.03); border: none; padding: 4px 10px; border-radius: 10px; font-weight: bold;}
+        .add-btn { display: none; width: 100%; background: #fafafa; border: 1px dashed #ccc; padding: 8px; border-radius: 8px; color: var(--text-muted); font-size: 13px; cursor: pointer; margin-bottom: 12px;}
+        
+        .editing-mode .task-item span { display: none; }
+        .editing-mode .task-item input[type="text"] { display: block; }
+        .editing-mode .task-item .delete-btn { display: block; }
+        .editing-mode .task-item input[type="checkbox"] { opacity: 0.5; pointer-events: none; }
+        .editing-mode .add-btn { display: block; }
+        .task-item input[type="checkbox"]:checked + span { color: var(--text-muted); text-decoration: line-through; }
+
+        .luck-section { text-align: center; margin-bottom: 16px;}
+        .luck-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); margin-bottom: 8px; }
+        .progress-bar { height: 10px; background: #eee; border-radius: 10px; overflow: hidden; }
+        .progress-fill { height: 100%; width: 0%; background: var(--primary-color); transition: width 0.4s ease, background 0.3s ease; }
+
+        .draw-section { text-align: center; }
+        .result-display { font-size: 40px; font-weight: bold; color: var(--primary-color); margin-bottom: 12px; min-height: 50px; text-shadow: 1px 1px 0px rgba(0,0,0,0.05); transition: color 0.3s ease;}
+        .main-btn { width: 100%; padding: 16px; background: var(--primary-color); color: white; border: none; border-radius: 16px; font-size: 18px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.1); transition: transform 0.1s, background 0.3s ease;}
+        .main-btn:active { transform: scale(0.96); }
+        .main-btn:disabled { background: #E0DDE5; box-shadow: none; cursor: not-allowed; transform: none;}
+
+        /* 修改账单弹窗 */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-content { background: white; padding: 24px; border-radius: 24px; width: 85%; }
+        .modal-title { text-align: center; font-size: 16px; font-weight: bold; margin-bottom: 20px; color: var(--primary-color);}
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <div class="view-pager" id="view-pager">
+        
+        <div class="page" id="page-0">
+            <div class="vault-card">
+                <div class="vault-title">💎 累计已省金额 (元)</div>
+                <div class="vault-amount" id="total-saved">0.00</div>
+            </div>
+
+            <div class="card" style="flex: 1; display: flex; flex-direction: column;">
+                <div class="card-title"><span>📊 今日财务</span></div>
+                <div class="dashboard">
+                    <div class="dash-item"><span class="dash-label">今日预算</span><span class="dash-val" id="today-budget">--</span></div>
+                    <div class="dash-item"><span class="dash-label">已花费</span><span class="dash-val val-spent" id="today-spent">0.00</span></div>
+                    <div class="dash-item"><span class="dash-label">剩余可用</span><span class="dash-val val-remain" id="today-remain">--</span></div>
+                </div>
+                <div class="accounting-row">
+                    <select class="acct-select" id="acct-cat">
+                        <option value="🍚 饮食">🍚 饮食</option>
+                        <option value="🛍️ 购物">🛍️ 购物</option>
+                        <option value="🏠 起居">🏠 起居</option>
+                        <option value="🚌 交通">🚌 交通</option>
+                        <option value="🎢 娱乐">🎢 娱乐</option>
+                    </select>
+                    <input type="number" class="acct-input" id="acct-amt" placeholder="花费金额" inputmode="decimal">
+                    <button class="acct-btn" onclick="addExpense()">记账</button>
+                </div>
+                <div class="expense-list" id="expense-list"></div>
+            </div>
+        </div>
+
+        <div class="page" id="page-1">
+            <div class="card">
+                <div class="card-title"><span>⚙️ 系统设置</span></div>
+                
+                <div class="settings-row">
+                    <span>界面主题颜色</span>
+                    <input type="color" id="theme-color-input" class="color-picker" value="#FF8FA3" onchange="changeTheme(this.value)">
+                </div>
+                <div class="settings-row">
+                    <span>页面背景颜色</span>
+                    <input type="color" id="bg-color-input" class="color-picker" value="#FFF0F3" onchange="changeBg(this.value)">
+                </div>
+
+                <div class="settings-row">
+                    <span>抽取区间 (元)</span>
+                    <div class="settings-inputs">
+                        <input type="number" id="min-val" value="30" onchange="saveSettings()"> 
+                        <span>~</span> 
+                        <input type="number" id="max-val" value="100" onchange="saveSettings()">
+                    </div>
+                </div>
+
+                <div style="margin-top: 15px; border-top: 1px dashed #eee; padding-top: 15px;">
+                    <button style="width: 100%; background: transparent; border: 1px dashed var(--danger); color: var(--danger); padding: 10px; border-radius: 8px; cursor: pointer; font-size: 13px;" onclick="resetData()">⚠️ 恢复出厂设置 (清空所有历史数据)</button>
+                </div>
+            </div>
+
+            <div class="card" id="task-container" style="flex: 1;">
+                <div class="card-title">
+                    <span>🎯 运气充能任务</span>
+                    <button class="edit-btn" id="edit-tasks-btn" onclick="toggleEdit()">编辑任务</button>
+                </div>
+                
+                <div class="task-list" id="task-list"></div>
+                <button class="add-btn" id="add-btn" onclick="addTask()">➕ 添加新任务</button>
+
+                <div class="luck-section">
+                    <div class="luck-label"><span>当前运气加成</span><span id="luck-percent">0%</span></div>
+                    <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+                </div>
+
+                <div class="stats-card">
+                    <div>本月最高<span class="stats-val" id="stat-max-container">¥<span id="stat-max">0</span></span></div>
+                    <div>本月最低<span class="stats-val" id="stat-min-container">¥<span id="stat-min">0</span></span></div>
+                    <div>本月平均<span class="stats-val" id="stat-avg-container">¥<span id="stat-avg">0</span></span></div>
+                </div>
+
+                <div class="draw-section">
+                    <div class="result-display" id="result">--</div>
+                    <button class="main-btn" id="draw-btn" onclick="drawBudget()">🪄 抽取明日盲盒</button>
+                </div>
+            </div>
+        </div>
+        
+    </div>
+
+    <div class="bottom-nav">
+        <div class="nav-item active" id="nav-0" onclick="switchTab(0)">
+            <span>📊 记账看板</span>
+            <div class="nav-indicator"></div>
+        </div>
+        <div class="nav-item" id="nav-1" onclick="switchTab(1)">
+            <span>🎁 盲盒任务</span>
+            <div class="nav-indicator"></div>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="edit-modal">
+    <div class="modal-content">
+        <div class="modal-title">✏️ 修改账单</div>
+        <select id="edit-cat" class="acct-select" style="width: 100%; margin-bottom: 12px;"></select>
+        <input type="number" id="edit-amt" class="acct-input" inputmode="decimal" style="width: 100%; margin-bottom: 20px;">
+        <input type="hidden" id="edit-id">
+        <div style="display:flex; gap:10px;">
+            <button class="main-btn" style="background:#eee; color:#333;" onclick="closeEdit()">取消</button>
+            <button class="main-btn" onclick="saveEdit()">保存修改</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- 统一日期格式助手 ---
+    function getTodayStr() {
+        const d = new Date();
+        return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+    }
+
+    // --- UI 滑动与切换逻辑 ---
+    let currentTab = 0;
+    const viewPager = document.getElementById('view-pager');
+    const navItems = [document.getElementById('nav-0'), document.getElementById('nav-1')];
+
+    function switchTab(index) {
+        currentTab = index;
+        viewPager.style.transform = `translateX(-${index * 100}vw)`;
+        navItems.forEach((nav, i) => nav.classList.toggle('active', i === index));
+        if(index === 0) checkNewDay(); 
+    }
+
+    let startX = 0;
+    viewPager.addEventListener('touchstart', e => { startX = e.touches[0].clientX; }, {passive: true});
+    viewPager.addEventListener('touchend', e => {
+        const diff = startX - e.changedTouches[0].clientX;
+        if (diff > 50 && currentTab === 0) switchTab(1); 
+        else if (diff < -50 && currentTab === 1) switchTab(0); 
+    }, {passive: true});
+
+    // --- 核心状态与数据 ---
+    let state = {
+        themeColor: localStorage.getItem('v5_themeColor') || '#FF8FA3',
+        bgColor: localStorage.getItem('v5_bgColor') || '#FFF0F3',
+        totalSaved: parseFloat(localStorage.getItem('v5_totalSaved')) || 0,
+        currentDate: localStorage.getItem('v5_currentDate') || getTodayStr(), 
+        currentMonth: parseInt(localStorage.getItem('v5_currentMonth')) || new Date().getMonth(),
+        todayBudget: parseFloat(localStorage.getItem('v5_todayBudget')) || 0,
+        todaySpent: parseFloat(localStorage.getItem('v5_todaySpent')) || 0,
+        tomorrowBudget: parseFloat(localStorage.getItem('v5_tomorrowBudget')) || 0,
+        expenses: JSON.parse(localStorage.getItem('v5_expenses')) || [],
+        hasDrawn: localStorage.getItem('v5_hasDrawn') === 'true',
+        minB: parseInt(localStorage.getItem('v5_minB')) || 30,
+        maxB: parseInt(localStorage.getItem('v5_maxB')) || 100,
+        drawHistory: JSON.parse(localStorage.getItem('v5_history')) || [], 
+        customTasks: JSON.parse(localStorage.getItem('v5_customTasks')) || [
+            "复习 CS61A 或专业课笔记",
+            "光华楼自习 / 算法打卡",
+            "背诵并默写20个单词"
+        ]
+    };
+    let isEditing = false;
+
+    state.expenses.forEach(e => { if(!e.id) e.id = Date.now() + Math.random(); });
+
+    // 初始化颜色设置
+    function changeTheme(color) {
+        state.themeColor = color;
+        localStorage.setItem('v5_themeColor', color);
+        document.documentElement.style.setProperty('--primary-color', color);
+    }
+    function changeBg(color) {
+        state.bgColor = color;
+        localStorage.setItem('v5_bgColor', color);
+        document.documentElement.style.setProperty('--bg-color', color);
+    }
+
+    document.documentElement.style.setProperty('--primary-color', state.themeColor);
+    document.documentElement.style.setProperty('--bg-color', state.bgColor);
+    document.getElementById('theme-color-input').value = state.themeColor;
+    document.getElementById('bg-color-input').value = state.bgColor;
+    document.getElementById('min-val').value = state.minB;
+    document.getElementById('max-val').value = state.maxB;
+
+    function saveSettings() {
+        state.minB = parseInt(document.getElementById('min-val').value) || 0;
+        state.maxB = parseInt(document.getElementById('max-val').value) || 0;
+        localStorage.setItem('v5_minB', state.minB);
+        localStorage.setItem('v5_maxB', state.maxB);
+    }
+
+    function resetData() {
+        if(confirm("⚠️ 确定要清空所有本地数据并恢复出厂设置吗？这将解决余额被异常存入的问题！")) {
+            localStorage.clear();
+            location.reload();
+        }
+    }
+
+    // --- 完美时间轴与断签跨天逻辑 ---
+    function checkNewDay() {
+        const realToday = getTodayStr(); 
+        const realMonth = new Date().getMonth();
+
+        // 跨月处理
+        if (state.currentMonth !== realMonth) {
+            state.drawHistory = [];
+            state.currentMonth = realMonth;
+            localStorage.setItem('v5_currentMonth', realMonth);
+            saveState();
+        }
+
+        // 跨天/多天处理
+        if (state.currentDate !== realToday) {
+            const lastD = new Date(state.currentDate.replace(/-/g, '/'));
+            const todayD = new Date(realToday.replace(/-/g, '/'));
+            const diffTime = todayD.getTime() - lastD.getTime();
+            const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+            const yesterdayRemain = Math.max(0, state.todayBudget - state.todaySpent);
+
+            if (diffDays === 1) {
+                state.totalSaved += yesterdayRemain;
+                state.todayBudget = state.tomorrowBudget;
+            } else if (diffDays > 1) {
+                state.totalSaved += yesterdayRemain;
+                state.totalSaved += state.tomorrowBudget;
+                state.todayBudget = 0;
+            }
+            
+            state.tomorrowBudget = 0;
+            state.todaySpent = 0;
+            state.expenses = [];
+            state.hasDrawn = false;
+            state.currentDate = realToday;
+            saveState();
+            renderUI();
+        }
+    }
+
+    // --- 💡 核心新增：超支保护逻辑助手 ---
+    function handleOverdraft(needed) {
+        if (needed <= 0) return true; // 预算充足，无需动用金库
+        if (state.totalSaved >= needed) {
+            if(confirm(`⚠️ 这笔花销将超支 ¥${needed}！\n是否从【累计已省】的小金库中取出 ¥${needed} 来填补空缺？`)) {
+                state.totalSaved = parseFloat((state.totalSaved - needed).toFixed(2));
+                state.todayBudget = parseFloat((state.todayBudget + needed).toFixed(2)); // 临时提高今日预算来覆盖超支
+                return true;
+            }
+            return false;
+        } else if (state.totalSaved > 0) {
+            if(confirm(`⚠️ 严重超支！\n小金库仅剩 ¥${state.totalSaved}，是否全部取出用于填补？（不足部分将记为负债）`)) {
+                state.todayBudget = parseFloat((state.todayBudget + state.totalSaved).toFixed(2));
+                state.totalSaved = 0;
+                return true;
+            }
+            return false;
+        } else {
+            return confirm("⚠️ 严重超支！小金库已经空了！\n继续操作将记为负债，确定吗？");
+        }
+    }
+
+    // --- 记账与删改功能 ---
+    function addExpense() {
+        if (state.todayBudget === 0 && state.todaySpent === 0 && state.totalSaved === 0) { 
+            alert("今天没有可用预算哦！请先去【盲盒任务】抽取明日的盲盒，明天再来正式记账吧~"); 
+            return; 
+        }
+        const amt = parseFloat(document.getElementById('acct-amt').value);
+        if (!amt || amt <= 0) return alert("请输入正确的金额！");
+        
+        // 触发超支保护检查
+        const currentRemain = state.todayBudget - state.todaySpent;
+        const needed = parseFloat((Math.max(0, amt - Math.max(0, currentRemain))).toFixed(2));
+        if (!handleOverdraft(needed)) return; // 用户取消了操作
+        
+        state.todaySpent = parseFloat((state.todaySpent + amt).toFixed(2));
+        
+        state.expenses.unshift({ 
+            id: Date.now(),
+            cat: document.getElementById('acct-cat').value, 
+            amt: parseFloat(amt.toFixed(2)), 
+            time: new Date().toLocaleTimeString('zh-CN', {hour: '2-digit', minute:'2-digit'}),
+            dateStr: state.currentDate 
+        });
+        
+        document.getElementById('acct-amt').value = '';
+        saveState();
+        renderUI();
+    }
+
+    function delExpense(id) {
+        const idx = state.expenses.findIndex(e => e.id === id);
+        if(idx > -1) {
+            const exp = state.expenses[idx];
+            if(!exp.dateStr || exp.dateStr === state.currentDate) {
+                state.todaySpent = Math.max(0, parseFloat((state.todaySpent - exp.amt).toFixed(2)));
+            }
+            state.expenses.splice(idx, 1);
+            saveState(); renderUI();
+        }
+    }
+
+    function openEdit(id) {
+        const exp = state.expenses.find(e => e.id === id);
+        if(!exp) return;
+        
+        const catSelect = document.getElementById('edit-cat');
+        catSelect.innerHTML = document.getElementById('acct-cat').innerHTML;
+        catSelect.value = exp.cat;
+        
+        document.getElementById('edit-amt').value = exp.amt;
+        document.getElementById('edit-id').value = exp.id;
+        document.getElementById('edit-modal').style.display = 'flex';
+    }
+
+    function closeEdit() { document.getElementById('edit-modal').style.display = 'none'; }
+
+    function saveEdit() {
+        const id = parseInt(document.getElementById('edit-id').value);
+        const newAmt = parseFloat(document.getElementById('edit-amt').value);
+        const newCat = document.getElementById('edit-cat').value;
+        if(!newAmt || newAmt <= 0) return alert("金额格式错误");
+
+        const idx = state.expenses.findIndex(e => e.id === id);
+        if(idx > -1) {
+            const oldAmt = state.expenses[idx].amt;
+            if(!state.expenses[idx].dateStr || state.expenses[idx].dateStr === state.currentDate) {
+                const diff = parseFloat((newAmt - oldAmt).toFixed(2));
+                
+                // 如果修改导致金额增加，触发超支保护检查
+                if (diff > 0) {
+                    const currentRemain = state.todayBudget - state.todaySpent;
+                    const needed = parseFloat((Math.max(0, diff - Math.max(0, currentRemain))).toFixed(2));
+                    if (!handleOverdraft(needed)) return;
+                }
+
+                state.todaySpent = parseFloat((state.todaySpent + diff).toFixed(2));
+                state.todaySpent = Math.max(0, state.todaySpent);
+            }
+            state.expenses[idx].amt = parseFloat(newAmt.toFixed(2));
+            state.expenses[idx].cat = newCat;
+            
+            closeEdit(); saveState(); renderUI();
+        }
+    }
+
+    // --- 动态任务管理 ---
+    function renderTasks() {
+        const list = document.getElementById('task-list');
+        list.innerHTML = '';
+        if(state.customTasks.length === 0 && !isEditing) list.innerHTML = '<div class="empty-tips">暂无任务，直接抽奖即为基础保底概率~</div>';
+
+        state.customTasks.forEach((task, i) => {
+            const div = document.createElement('div');
+            div.className = 'task-item';
+            div.innerHTML = `
+                <input type="checkbox" class="task-checkbox" onchange="updateLuck()" ${state.hasDrawn ? 'disabled' : ''}>
+                <span>${task}</span>
+                <input type="text" class="task-input" value="${task}">
+                <button class="delete-btn" onclick="deleteTask(${i})">✖</button>
+            `;
+            list.appendChild(div);
+        });
+        updateLuck();
+    }
+
+    function toggleEdit() {
+        isEditing = !isEditing;
+        const container = document.getElementById('task-container');
+        const editBtn = document.getElementById('edit-tasks-btn');
+        
+        if (isEditing) {
+            editBtn.innerText = "💾 保存修改";
+            container.classList.add('editing-mode');
+        } else {
+            editBtn.innerText = "编辑任务";
+            container.classList.remove('editing-mode');
+            const inputs = document.querySelectorAll('.task-input');
+            state.customTasks = Array.from(inputs).map(inp => inp.value).filter(val => val.trim() !== '');
+            saveState();
+            renderTasks();
+        }
+    }
+
+    function addTask() {
+        state.customTasks.push("新任务");
+        renderTasks();
+    }
+
+    function deleteTask(index) {
+        state.customTasks.splice(index, 1);
+        renderTasks();
+    }
+
+    // --- 算法与抽奖 ---
+    function updateLuck() {
+        if(isEditing) return {checked:0, total:0};
+        const checkboxes = document.querySelectorAll('.task-checkbox');
+        const total = checkboxes.length;
+        let checked = 0;
+        checkboxes.forEach(cb => { if(cb.checked) checked++; });
+        
+        const percent = total > 0 ? Math.round((checked / total) * 100) : 0;
+        document.getElementById('progress-fill').style.width = percent + '%';
+        document.getElementById('luck-percent').innerText = percent + '%';
+        return { checked, total };
+    }
+
+    function calculateBudget(min, max, checked, total) {
+        const perTaskWeight = total > 0 ? 0.3 / total : 0;
+        const shift = 0.4 + (perTaskWeight * checked); 
+        const mean = min + (max - min) * shift;
+        const stdDev = (max - min) / 6;
+        let u=0, v=0; while(u===0) u=Math.random(); while(v===0) v=Math.random();
+        let res = mean + (Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v)) * stdDev;
+        return Math.max(min, Math.min(max, Math.round(res)));
+    }
+
+    function drawBudget() {
+        saveSettings(); 
+        if (state.minB > state.maxB) return alert("最小值不能大于最大值哦！");
+
+        const { checked, total } = updateLuck();
+        const btn = document.getElementById('draw-btn');
+        const resDisplay = document.getElementById('result');
+        btn.disabled = true;
+        
+        let count = 0;
+        let interval = setInterval(() => {
+            resDisplay.innerText = `¥ ${Math.floor(Math.random()*(state.maxB-state.minB+1))+state.minB}`;
+            if (++count > 20) {
+                clearInterval(interval);
+                const final = calculateBudget(state.minB, state.maxB, checked, total);
+                resDisplay.innerText = `¥ ${final}`;
+                
+                state.tomorrowBudget = final;
+                state.hasDrawn = true;
+                state.drawHistory.push(final); 
+                
+                saveState();
+                renderUI(); 
+                
+                document.querySelectorAll('.stats-val').forEach(el => {
+                    el.style.transform = 'scale(1.2)';
+                    setTimeout(() => el.style.transform = 'scale(1)', 200);
+                });
+                
+                // 首次使用的提示（不再发放当日启动资金）
+                if (state.todayBudget === 0) {
+                    setTimeout(() => {
+                        alert("🎉 抽取成功！这笔钱已作为你明天的生活费。明天再来记账吧~");
+                        switchTab(0);
+                    }, 500);
+                }
+            }
+        }, 50);
+    }
+
+    // --- 渲染与保存 ---
+    function saveState() {
+        localStorage.setItem('v5_totalSaved', state.totalSaved);
+        localStorage.setItem('v5_currentDate', state.currentDate);
+        localStorage.setItem('v5_todayBudget', state.todayBudget);
+        localStorage.setItem('v5_todaySpent', state.todaySpent);
+        localStorage.setItem('v5_tomorrowBudget', state.tomorrowBudget);
+        localStorage.setItem('v5_expenses', JSON.stringify(state.expenses));
+        localStorage.setItem('v5_hasDrawn', state.hasDrawn);
+        localStorage.setItem('v5_customTasks', JSON.stringify(state.customTasks));
+        localStorage.setItem('v5_history', JSON.stringify(state.drawHistory)); 
+    }
+
+    function renderUI() {
+        document.getElementById('total-saved').innerText = state.totalSaved.toFixed(2);
+        document.getElementById('today-budget').innerText = state.todayBudget > 0 ? state.todayBudget : '--';
+        document.getElementById('today-spent').innerText = state.todaySpent > 0 ? parseFloat(state.todaySpent.toFixed(2)) : '0';
+        
+        const remain = state.todayBudget - state.todaySpent;
+        const remainUI = document.getElementById('today-remain');
+        remainUI.innerText = state.todayBudget > 0 ? parseFloat(remain.toFixed(2)) : '--';
+        remainUI.style.color = remain < 0 ? 'var(--danger)' : 'var(--success)';
+
+        const listUI = document.getElementById('expense-list');
+        listUI.innerHTML = state.expenses.length === 0 ? '<div class="empty-tips">今天还没有花钱记录哦~</div>' : '';
+        state.expenses.forEach(exp => {
+            const div = document.createElement('div');
+            div.className = 'expense-item';
+            div.innerHTML = `
+                <div class="exp-info">
+                    <span style="font-weight:bold;">${exp.cat}</span>
+                    <span style="font-size:11px;color:var(--text-muted)">${exp.time}</span>
+                </div>
+                <div class="exp-actions">
+                    <span class="exp-amt">-¥${exp.amt}</span>
+                    <span class="exp-edit" onclick="openEdit(${exp.id})">✏️</span>
+                    <span class="exp-del" onclick="delExpense(${exp.id})">×</span>
+                </div>
+            `;
+            listUI.appendChild(div);
+        });
+
+        if (state.drawHistory.length > 0) {
+            document.getElementById('stat-max').innerText = Math.max(...state.drawHistory);
+            document.getElementById('stat-min').innerText = Math.min(...state.drawHistory);
+            const sum = state.drawHistory.reduce((a, b) => a + b, 0);
+            document.getElementById('stat-avg').innerText = Math.round(sum / state.drawHistory.length);
+        } else {
+            document.getElementById('stat-max').innerText = '0';
+            document.getElementById('stat-min').innerText = '0';
+            document.getElementById('stat-avg').innerText = '0';
+        }
+
+        const btn = document.getElementById('draw-btn');
+        if (state.hasDrawn) {
+            document.getElementById('result').innerText = `¥ ${state.tomorrowBudget}`;
+            btn.innerText = "明日生活费已入账 💸";
+            btn.disabled = true;
+            document.getElementById('min-val').disabled = true;
+            document.getElementById('max-val').disabled = true;
+        } else {
+            document.getElementById('result').innerText = "--";
+            btn.innerText = "🪄 抽取明日盲盒";
+            btn.disabled = false;
+            document.getElementById('min-val').disabled = false;
+            document.getElementById('max-val').disabled = false;
+        }
+        
+        renderTasks();
+    }
+
+    checkNewDay();
+    renderUI();
+
+</script>
+</body>
+</html>
